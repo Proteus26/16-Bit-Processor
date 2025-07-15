@@ -180,3 +180,108 @@ module instr_decoder (
         endcase
     end
 endmodule
+
+module register_file (
+    input wire clk,
+    input wire rst,
+    input wire [4:0] rs1,
+    input wire [4:0] rs2,
+    input wire [4:0] rd,
+    input wire [15:0] write_data,
+    input wire reg_write,
+    output wire [15:0] data1,
+    output wire [15:0] data2
+);
+
+    reg [15:0] registers [0:31];
+    integer i;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            for (i = 0; i < 32; i = i + 1) begin
+                registers[i] <= 16'd0;
+            end
+        end else if (reg_write && rd != 5'd0) begin
+            registers[rd] <= write_data;
+        end
+    end
+
+    assign data1 = (rs1 == 5'd0) ? 16'd0 : registers[rs1];
+    assign data2 = (rs2 == 5'd0) ? 16'd0 : registers[rs2];
+
+endmodule
+
+module alu (
+    input wire [15:0] a,
+    input wire [15:0] b,
+    input wire [15:0] imm,
+    input wire [3:0] alu_op,
+    output reg [15:0] result,
+    output wire zero
+);
+
+    always @(*) begin
+        case (alu_op)
+            4'b0000: result = a + b;
+            4'b0001: result = a + imm;
+            4'b0010: result = a - b;
+            4'b0011: result = a & b;
+            4'b0100: result = a | b;
+            4'b0101: result = a ^ b;
+            4'b0110: result = a << b[3:0];
+            4'b0111: result = a >> b[3:0];
+            default: result = 16'd0;
+        endcase
+    end
+
+    assign zero = (result == 16'd0);
+
+endmodule
+
+module data_memory (
+    input wire clk,
+    input wire rst,
+    input wire [7:0] address,
+    input wire [15:0] write_data,
+    input wire mem_read,
+    input wire mem_write,
+    output reg [15:0] read_data,
+    input wire [15:0] io_in,
+    output reg [15:0] io_out
+);
+
+    reg [15:0] memory [0:255];
+    integer i;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            for (i = 0; i < 256; i = i + 1) begin
+                memory[i] <= 16'd0;
+            end
+            io_out <= 16'd0;
+        end else begin
+            if (mem_write) begin
+                if (address == 8'hFF) begin
+                    io_out <= write_data;
+                end else begin
+                    memory[address] <= write_data;
+                end
+            end
+        end
+    end
+
+    always @(*) begin
+        if (mem_read) begin
+            if (address == 8'hFE) begin
+                read_data = io_in;
+            end else if (address == 8'hFF) begin
+                read_data = io_out;
+            end else begin
+                read_data = memory[address];
+            end
+        end else begin
+            read_data = 16'd0;
+        end
+    end
+
+endmodule
